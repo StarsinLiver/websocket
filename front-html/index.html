@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Room</title>
+    <style>
+        #messages {
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+        }
+        #messages li {
+            padding: 5px 10px;
+        }
+        #messages li:nth-child(odd) {
+            background-color: #f1f1f1;
+        }
+        #messageInput {
+            width: 70%;
+        }
+        #imageInput {
+            margin-top: 10px;
+        }
+        .message-image {
+            max-width: 200px;
+            max-height: 200px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Chat Room</h1>
+
+    <ul id="messages"></ul>
+    <input type="text" id="messageInput" placeholder="Type your message...">
+    <input type="file" id="imageInput" multiple><br>
+    <button onclick="sendMessage()">Send</button>
+
+    <script>
+        const textWebSocket = new WebSocket("ws://localhost:8080/text");
+        const imageWebSocket = new WebSocket("ws://localhost:8080/binary");
+
+        textWebSocket.onopen = function(event) {
+            console.log("Text WebSocket 연결 성공!");
+        };
+
+        imageWebSocket.onopen = function(event) {
+            console.log("Image WebSocket 연결 성공!");
+        };
+
+        textWebSocket.onmessage = function(event) {
+            const messages = document.getElementById("messages");
+            const li = document.createElement("li");
+            li.textContent = event.data;
+            messages.appendChild(li);
+        };
+
+        imageWebSocket.onmessage = function(event) {
+            const messages = document.getElementById("messages");
+            const li = document.createElement("li");
+            const imageUrl = URL.createObjectURL(event.data);
+            const img = document.createElement("img");
+            img.src = imageUrl;
+            img.classList.add("message-image");
+            li.appendChild(img);
+            messages.appendChild(li);
+        };
+
+        textWebSocket.onerror = function(error) {
+            console.error("Text WebSocket 오류 발생:", error);
+        };
+
+        imageWebSocket.onerror = function(error) {
+            console.error("Image WebSocket 오류 발생:", error);
+        };
+
+        function sendMessage() {
+            const messageInput = document.getElementById("messageInput");
+            const message = messageInput.value;
+
+            const fileInput = document.getElementById('imageInput');
+            const files = fileInput.files;
+
+            if (message.trim() !== "" || files.length > 0) {
+                if (message.trim() !== "") {
+                    textWebSocket.send(message);
+                }
+                if (files.length > 0) {
+                    for (let i = 0; i < files.length; i++) {
+                        const reader = new FileReader();
+                        reader.onload = function(event) {
+                            const arrayBuffer = event.target.result;
+                            const binaryData = new Uint8Array(arrayBuffer);
+                            imageWebSocket.send(binaryData);
+                        };
+                        reader.readAsArrayBuffer(files[i]);
+                    }
+                    // 파일 입력 상자 초기화
+                    fileInput.value = "";
+                }
+                messageInput.value = "";
+            } else {
+                console.error("메시지나 파일을 입력하세요.");
+            }
+        }
+    </script>
+</body>
+</html>
